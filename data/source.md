@@ -1,0 +1,1 @@
+The data were taken from: https://github.com/HAIRLAB/Pre_Surv_COVID_19 and were describe in "An interpretable mortality prediction model for COVID-19 patients" by Li Yan *et al.* ([Nature Machine Intelligence](https://www.nature.com/articles/s42256-020-0180-7)).
