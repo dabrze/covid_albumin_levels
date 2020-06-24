@@ -151,3 +151,36 @@ t.test(df[df$Outcome=="Death",]$albumin, df[df$Outcome=="Survived",]$albumin)
 ## mean of x mean of y 
 ##  27.77529  36.77236
 ```
+
+
+```r
+mean(df[df$Outcome=="Death",]$albumin)
+```
+
+```
+## [1] 27.77529
+```
+
+```r
+sd(df[df$Outcome=="Death",]$albumin)
+```
+
+```
+## [1] 4.878064
+```
+
+```r
+mean(df[df$Outcome=="Survived",]$albumin)
+```
+
+```
+## [1] 36.77236
+```
+
+```r
+sd(df[df$Outcome=="Survived",]$albumin)
+```
+
+```
+## [1] 4.066554
+```

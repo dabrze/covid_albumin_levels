@@ -447,6 +447,14 @@ library(ggpubr)</code></pre>
 ## sample estimates:
 ## mean of x mean of y 
 ##  27.77529  36.77236</code></pre>
+<pre class="r"><code>mean(df[df$Outcome==&quot;Death&quot;,]$albumin)</code></pre>
+<pre><code>## [1] 27.77529</code></pre>
+<pre class="r"><code>sd(df[df$Outcome==&quot;Death&quot;,]$albumin)</code></pre>
+<pre><code>## [1] 4.878064</code></pre>
+<pre class="r"><code>mean(df[df$Outcome==&quot;Survived&quot;,]$albumin)</code></pre>
+<pre><code>## [1] 36.77236</code></pre>
+<pre class="r"><code>sd(df[df$Outcome==&quot;Survived&quot;,]$albumin)</code></pre>
+<pre><code>## [1] 4.066554</code></pre>
 
 
 

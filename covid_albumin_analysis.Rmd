@@ -79,3 +79,11 @@ shapiro.test(df[df$Outcome=="Death",]$albumin)
 shapiro.test(df[df$Outcome=="Survived",]$albumin)
 t.test(df[df$Outcome=="Death",]$albumin, df[df$Outcome=="Survived",]$albumin)
 ```
+
+```{r}
+mean(df[df$Outcome=="Death",]$albumin)
+sd(df[df$Outcome=="Death",]$albumin)
+
+mean(df[df$Outcome=="Survived",]$albumin)
+sd(df[df$Outcome=="Survived",]$albumin)
+```
