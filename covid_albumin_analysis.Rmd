@@ -13,60 +13,211 @@ library(ggforce)
 library(dplyr)
 library(zoo)
 library(ggpubr)
+library(lme4)
+library(cowplot)
 ```
 
 ```{r functions}
+FONT_SIZE=18
+PLOT_SIZE=6
+PLOT_UNITS="in"
+DEATH_COLOR <- "#EE6677"
+SURVIVED_COLOR <- "#4477AA"
+NORMAL_RANGE_COLOR <- "#555555"
+OUTCOME_PALETTE <- c(DEATH_COLOR, SURVIVED_COLOR)
+
 read_data <- function(file) {
   df <- read_excel(file)
   df$PATIENT_ID <- na.locf(df$PATIENT_ID)
   df <- na.locf(df)
-  df <- df %>%
+  
+  df$AlbuminSampleId <- 1
+  for (id in unique(df$PATIENT_ID)) {
+    df[df$PATIENT_ID == id,"AlbuminSampleId"] <- seq.int(nrow(df[df$PATIENT_ID == id, ]))
+  }
+  
+  df_all_samples <- df %>%
     mutate(gender = replace(gender, gender == 1, "Male"), 
            gender = replace(gender, gender == 2, "Female"), 
            outcome = replace(outcome, outcome == 0, "Survived"), 
-           outcome = replace(outcome, outcome == 1, "Death")) %>%
+           outcome = replace(outcome, outcome == 1, "Death"),
+           Outcome = outcome)
+  
+  df_all_samples
+}
+
+get_last_samples <- function(df_all_samples) {
+  df <- df_all_samples %>%
     group_by(PATIENT_ID) %>% 
-    summarise(albumin=last(albumin), Outcome=last(outcome), n=n())
+    summarise(albumin=last(albumin), Outcome=last(outcome), glucose=last(glucose), n=n())
   
   df
 }
-```
 
-```{r}
-df <- read_data("data/time_series_375_prerpocess_en.xlsx")
+get_first_samples <- function(df_all_samples) {
+  df <- df_all_samples %>%
+    group_by(PATIENT_ID) %>% 
+    summarise(albumin=first(albumin), Outcome=first(outcome), n=n())
+  
+  df
+}
 
-ggplot(df, aes(x=Outcome, y=albumin, color=Outcome)) + 
-  geom_hline(aes(yintercept=35), colour="#555555", linetype="dashed") +
-  geom_hline(aes(yintercept=55), colour="#555555", linetype="dashed") + 
+save_plot <- function(p, name) {
+  ggsave(paste0("plots/", name, ".svg"), p, width=PLOT_SIZE, height=PLOT_SIZE, units=PLOT_UNITS)
+  ggsave(paste0("plots/", name, ".png"), p, width=PLOT_SIZE, height=PLOT_SIZE, units=PLOT_UNITS)
+}
+
+draw_albumin_sina_plot <-function(df, plot_name) {
+  p <- ggplot(df, aes(x=Outcome, y=albumin, color=Outcome)) + 
+  geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
+    
   geom_sina(seed=21) + 
   stat_summary(fun.data = "mean_sdl",  fun.args = list(mult = 1), 
                geom = "pointrange", color = "black") +
   theme_classic() + 
   theme(legend.position = "none", 
+        text = element_text(size=FONT_SIZE), 
+        axis.text = element_text(colour = "black", size=FONT_SIZE), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 8, b = 0, l = 0))) + 
+  xlab("") + 
+  ylab ("Patient's albumin level (g/L)") +
+  ylim(13, 56) +
+  scale_color_manual(values=OUTCOME_PALETTE)
+  
+  save_plot(p, plot_name)
+  p
+}
+
+draw_glucose_sina_plot <- function(df, plot_name, width=PLOT_SIZE, height=PLOT_SIZE, units=PLOT_UNITS) {
+  p <- ggplot(df, aes(x=Outcome, y=glucose, color=Outcome)) + 
+  geom_hline(aes(yintercept=3.9), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_hline(aes(yintercept=7.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
+  geom_sina(seed=21) + 
+  stat_summary(fun.data = "mean_sdl",  fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black") +
+  theme_classic() + 
+  theme(legend.position = "none", 
+        text = element_text(size=FONT_SIZE), 
+        axis.text = element_text(colour = "black", size=FONT_SIZE), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 8, b = 0, l = 0))) + 
+  xlab("") + 
+  ylab ("Patient's glucose level (mmol/L)") +
+  scale_color_manual(values=OUTCOME_PALETTE)
+  
+  save_plot(p, plot_name)
+  p
+}
+
+draw_albumin_glucose_plot <-function(df, plot_name, width=6, height=6) {
+  p <- ggplot(df, aes(x=glucose, y=albumin, color=Outcome)) + 
+  geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_vline(aes(xintercept=3.9), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_vline(aes(xintercept=7.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
+  geom_point() + 
+  theme_classic() + 
+  theme(legend.position = c(0.85, 0.88), 
+        text = element_text(size=FONT_SIZE), 
+        axis.text = element_text(colour = "black", size=18), 
+        axis.text.y = element_blank()) + 
+  xlab("Patient's glucose level (mmol/L)") + 
+  ylab ("") +
+  ylim(13, 56) +
+  scale_color_manual(values=OUTCOME_PALETTE)
+  
+  save_plot(p, plot_name)
+  p
+}
+```
+
+```{r}
+df_all <- read_data("data/time_series_375_prerpocess_en.xlsx")
+df_last <- get_last_samples(df_all)
+```
+
+```{r}
+a_plot <- draw_albumin_sina_plot(df_last, "albumin_level_sina_plot")
+```
+
+```{r}
+c_plot <- draw_albumin_glucose_plot(df_last, "albumin_glucose_plot")
+```
+
+```{r}
+plot_grid(a_plot, c_plot, labels=c("A", "C"), ncol = 2, nrow = 1)
+```
+```{r}
+ggsave(paste0("plots/", "combined", ".svg"))
+ggsave(paste0("plots/", "combined", ".png"))
+```
+
+```{r}
+supplement_plot <- draw_glucose_sina_plot(df_last, "glucose_level_sina_plot")
+```
+
+```{r, warning=F}
+d <- df_all[, c("PATIENT_ID", "albumin", "AlbuminSampleId")]
+
+fits <- lmList(albumin ~ AlbuminSampleId | PATIENT_ID, data=d)
+coefs <- coef(fits)
+coefs <- cbind(coefs, df_last)
+
+
+aDeath <- median(coefs[coefs$Outcome == "Death", "AlbuminSampleId"], na.rm=T)
+aQ1Death <- quantile(coefs[coefs$Outcome == "Death", "AlbuminSampleId"], 0.25, na.rm=T)
+aQ3Death <- quantile(coefs[coefs$Outcome == "Death", "AlbuminSampleId"], 0.75, na.rm=T)
+bDeath <- median(coefs[coefs$Outcome == "Death", "(Intercept)"], na.rm=T)
+aSurvived <- median(coefs[coefs$Outcome == "Survived", "AlbuminSampleId"], na.rm=T)
+aQ1Survived <- quantile(coefs[coefs$Outcome == "Survived", "AlbuminSampleId"], 0.25, na.rm=T)
+aQ3Survived <- quantile(coefs[coefs$Outcome == "Survived", "AlbuminSampleId"], 0.75, na.rm=T)
+bSurvived <- median(coefs[coefs$Outcome == "Survived", "(Intercept)"], na.rm=T)
+```
+
+```{r}
+ggplot(df_all, aes(x=AlbuminSampleId, y=albumin, color=Outcome)) + 
+  geom_hline(aes(yintercept=35), colour="#555555", linetype="dashed") +
+  geom_hline(aes(yintercept=55), colour="#555555", linetype="dashed") + 
+  geom_line(mapping=aes(group=PATIENT_ID), alpha=0.35) +
+  geom_segment(aes(x=1, xend=60, y=bDeath + aDeath, 
+                   yend = bDeath + aDeath*60), 
+               color="#EE6677", size=1) +
+    # geom_segment(aes(x=1, xend=60, y=bDeath + aQ1Death, 
+    #                yend = bDeath + aQ1Death*60), 
+    #            color="#EE6677", size=0.8, linetype = 2) +
+    # geom_segment(aes(x=1, xend=60, y=bDeath + aQ3Death, 
+    #                yend = bDeath + aQ3Death*60), 
+    #            color="#EE6677", size=0.8, linetype = 2) +
+  geom_segment(aes(x=1, xend=60, 
+                   y=bSurvived + aSurvived, yend = bSurvived + aSurvived*60),
+               color="#4477AA", size=1) +
+    # geom_segment(aes(x=1, xend=60, 
+    #                y=bSurvived + aQ1Survived, yend = bSurvived + aQ1Survived*60),
+    #            color="#4477AA", size=0.8, linetype = 2) +
+    # geom_segment(aes(x=1, xend=60, 
+    #                y=bSurvived + aQ3Survived, yend = bSurvived + aQ3Survived*60),
+    #            color="#4477AA", size=0.8, linetype = 2) +
+  theme_classic() + 
+  theme(legend.position = c(0.88, 0.12), 
         text = element_text(size=18), 
         axis.text = element_text(colour = "black", size=18), 
         axis.title.y = element_text(margin = margin(t = 0, r = 18, b = 0, l = 0))) + 
-  xlab("") + 
+  xlab("Blood sample number") + 
   ylab ("Patient's albumin level (g/L)") +
+  ylim(13, 56) +
   scale_color_manual(values=c("#EE6677", "#4477AA"))
 ```
 
 ```{r, include=FALSE}
-ggsave("plots/albumin_level_sina_plot.svg", width=6, height=6, units="in")
-ggsave("plots/albumin_level_sina_plot.png", width=6, height=6, units="in")
-```
-
-```{r}
-print(tapply(df$albumin, df$Outcome, length))
-print(tapply(df$albumin, df$Outcome, median))
-print(tapply(df$albumin, df$Outcome, quantile))
+ggsave("plots/albumin_level_series.svg", width=6, height=6, units="in")
+ggsave("plots/albumin_level_series.png", width=6, height=6, units="in")
 ```
 
 ```{r}
 ggqqplot(df, x="albumin", color="Outcome", palette = c("#EE6677", "#4477AA")) + 
   theme(legend.position = c(0.88, 0.18), 
         axis.text = element_text(colour = "black", size=18), 
-        text = element_text(size=18))
+        text = element_text(size=18)) + xlab("Theoretical quantiles") + ylab("Sample quantiles")
 ```
 
 ```{r, include=FALSE}
