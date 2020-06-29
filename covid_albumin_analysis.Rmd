@@ -1,11 +1,17 @@
 ---
-title: "Analysis of albumin levels in patients from Tongji Hospital, Wuhan, China"
-output:
+title: "Analysis of albumin and glucose levels in patients from Tongji Hospital, Wuhan, China"
+author: "Dariusz Brzezinski"
+date: "`r Sys.Date()`"
+output: 
   html_document: 
-    keep_md: yes
+    number_sections: yes
+    toc: yes
+    toc_float: yes
 ---
 
-```{r setup, message=FALSE, warning=FALSE}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F, cache = F)
+
 library(readxl)
 library(Hmisc)
 library(ggplot2)
@@ -17,6 +23,7 @@ library(lme4)
 ```
 
 ```{r functions}
+DPI=600
 PLOT_SIZE=5
 FONT_SIZE=18
 PLOT_UNITS="in"
@@ -38,9 +45,8 @@ read_data <- function(file) {
     mutate(gender = replace(gender, gender == 1, "Male"), 
            gender = replace(gender, gender == 2, "Female"),
            gender = factor(gender, levels = c("Male", "Female")),
-           outcome = replace(outcome, outcome == 0, "Survived"), 
-           outcome = replace(outcome, outcome == 1, "Died"),
-           Outcome = outcome,
+           OutcomeFactor = replace(outcome, outcome == 0, "Survived"), 
+           OutcomeFactor = replace(OutcomeFactor, OutcomeFactor == 1, "Died"),
            TimeSinceSubmission = as.numeric(difftime(RE_DATE, First_RE_DATE), units="days"))
   
   df_all_samples
@@ -49,7 +55,8 @@ read_data <- function(file) {
 get_last_samples <- function(df_all_samples) {
   df <- df_all_samples %>%
     group_by(PATIENT_ID) %>% 
-    summarise(albumin=last(albumin), Outcome=last(outcome), glucose=last(glucose), gender=last(gender), n=n())
+    summarise(albumin=last(albumin), OutcomeFactor=last(OutcomeFactor), OutcomeNumber=last(outcome),
+              glucose=last(glucose), gender=last(gender), age=last(age), n=n())
   
   df
 }
@@ -57,20 +64,197 @@ get_last_samples <- function(df_all_samples) {
 get_first_samples <- function(df_all_samples) {
   df <- df_all_samples %>%
     group_by(PATIENT_ID) %>% 
-    summarise(albumin=first(albumin), Outcome=first(outcome), n=n())
+    summarise(albumin=first(albumin), OutcomeFactor=first(OutcomeFactor), n=n())
   
   df
 }
 
-save_plot <- function(p, name) {
-  ggsave(paste0("plots/", name, ".svg"), p, width=PLOT_SIZE, height=PLOT_SIZE, units=PLOT_UNITS)
-  ggsave(paste0("plots/", name, ".png"), p, width=PLOT_SIZE, height=PLOT_SIZE, units=PLOT_UNITS)
+save_plot <- function(p, name, width=PLOT_SIZE, height=PLOT_SIZE) {
+  ggsave(paste0("plots/", name, ".svg"), p, width=width, height=height, units=PLOT_UNITS, dpi=DPI)
+  ggsave(paste0("plots/", name, ".png"), p, width=width, height=height, units=PLOT_UNITS, dpi=DPI)
 }
+```
 
-draw_albumin_sina_plot <-function(df, plot_name) {
-  p <- ggplot(df, aes(x=Outcome, y=albumin, color=Outcome)) + 
+TODO: Executive summary
+
+# Data characteristics
+
+```{r}
+df_all <- read_data("data/time_series_375_prerpocess_en.xlsx")
+df_last <- get_last_samples(df_all)
+
+tapply(df_last[df_last$gender == "Female", ]$gender,df_last[df_last$gender == "Female", ]$OutcomeFactor, length)
+```
+
+# Albumin levels
+
+## Distributions and normality tests
+
+```{r}
+draw_albumin_sina_plot <-function(df) {
+  p <- ggplot(df, aes(x=OutcomeFactor, y=albumin, color=OutcomeFactor)) + 
   geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
   geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
+    
+  geom_sina(seed=21) + 
+  stat_summary(fun.data = "mean_sdl",  fun.args = list(mult = 1), 
+               geom = "pointrange", color = "black") +
+  theme_classic() + 
+  theme(legend.position = "none",
+        strip.background = element_blank(),
+        text = element_text(size=FONT_SIZE), 
+        axis.text = element_text(colour = "black", size=FONT_SIZE), 
+        axis.title.y = element_text(margin = margin(t = 0, r = 8, b = 0, l = 0))) + 
+  xlab("") + 
+  ylab ("Patient's albumin level (g/L)") +
+  labs(color = "Outcome") + 
+  ylim(13, 56) +
+  scale_color_manual(values=OUTCOME_PALETTE)
+  
+  p
+}
+
+draw_qq_plot <- function(df, column) {
+  ggqqplot(df_last, x=column, color="OutcomeFactor", palette = c("#EE6677", "#4477AA")) + 
+  labs(color = "Outcome", fill = "Outcome") + 
+  theme(legend.position = c(0.88, 0.18), 
+        axis.text = element_text(colour = "black", size=18), 
+        text = element_text(size=18)) + xlab("Theoretical quantiles") + ylab("Sample quantiles")
+}
+```
+
+
+```{r}
+albumin_sina_plot <- draw_albumin_sina_plot(df_last)
+save_plot(albumin_sina_plot, "albumin_sina_plot")
+albumin_sina_plot
+```
+
+
+```{r}
+albumin_qq_plot <- draw_qq_plot(df_last, "albumin")
+save_plot(albumin_qq_plot, "albumin_qq_plot")
+albumin_qq_plot
+```
+
+
+```{r}
+shapiro.test(df_last[df_last$OutcomeFactor=="Died",]$albumin)
+shapiro.test(df_last[df_last$OutcomeFactor=="Survived",]$albumin)
+t.test(df_last[df_last$OutcomeFactor=="Died",]$albumin, df_last[df_last$OutcomeFactor=="Survived",]$albumin)
+```
+
+
+```{r}
+mean(df_last[df_last$OutcomeFactor=="Died",]$albumin)
+sd(df_last[df_last$OutcomeFactor=="Died",]$albumin)
+```
+
+
+```{r}
+mean(df_last[df_last$OutcomeFactor=="Survived",]$albumin)
+sd(df_last[df_last$OutcomeFactor=="Survived",]$albumin)
+```
+
+## Gender
+
+```{r}
+albumin_gender_plot <- albumin_sina_plot + facet_grid(cols = vars(gender))
+save_plot(albumin_gender_plot + theme(strip.text.x = element_blank()), "albumin_gender_plot")
+albumin_gender_plot
+```
+
+## Time series and trends
+
+```{r}
+draw_albumin_time_series_plot <- function(df_all, aDeath, bDeath, aSurvived, bSurvived) {
+  p <- ggplot(df_all, aes(x=TimeSinceSubmission, y=albumin, color=OutcomeFactor)) + 
+    geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+    geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
+    geom_line(mapping=aes(group=PATIENT_ID), alpha=0.35) +
+    geom_segment(aes(x=0, xend=22, y=bDeath + aDeath, 
+                     yend = bDeath + aDeath*22), 
+                 color=DEATH_COLOR, size=1.25) +
+    geom_segment(aes(x=0, xend=22, y=bSurvived + aSurvived, 
+                     yend = bSurvived + aSurvived*22),
+                 color=SURVIVED_COLOR, size=1.25) +
+    theme_classic() + 
+    theme(legend.position = c(0.88, 0.18),
+          text = element_text(size=FONT_SIZE), 
+          axis.text = element_text(colour = "black", size=FONT_SIZE), 
+          axis.text.y = element_blank()) +
+    xlab("Days since admission") + 
+    ylab ("") +
+    labs(color = "Outcome") + 
+    ylim(13, 56) +
+    scale_color_manual(values=OUTCOME_PALETTE)
+  
+
+  p
+}
+```
+
+```{r}
+d <- df_all[, c("PATIENT_ID", "albumin", "TimeSinceSubmission")]
+
+fits <- lmList(albumin ~ TimeSinceSubmission | PATIENT_ID, data=d)
+coefs <- coef(fits)
+coefs <- cbind(coefs, df_last)
+
+aDeath <- median(coefs[coefs$OutcomeFactor == "Died", "TimeSinceSubmission"], na.rm=T)
+bDeath <- median(coefs[coefs$OutcomeFactor == "Died", "(Intercept)"], na.rm=T)
+aSurvived <- median(coefs[coefs$OutcomeFactor == "Survived", "TimeSinceSubmission"], na.rm=T)
+bSurvived <- median(coefs[coefs$OutcomeFactor == "Survived", "(Intercept)"], na.rm=T)
+
+albumin_time_series_plot <- draw_albumin_time_series_plot(df_all, aDeath, bDeath, aSurvived, bSurvived)
+save_plot(albumin_time_series_plot + theme(legend.position = "none"), "albumin_time_series_plot")
+albumin_time_series_plot
+```
+
+# Glucose levels 
+
+## Distributions and normality tests
+
+## Gender
+
+## Time series and trends
+
+# Relation between albumin and glucose levels
+
+```{r}
+draw_albumin_glucose_plot <-function(df) {
+  p <- ggplot(df, aes(x=glucose, y=albumin, color=OutcomeFactor)) + 
+  geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_vline(aes(xintercept=11.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
+  geom_point() + 
+  theme_classic() + 
+  theme(legend.position = c(0.85, 0.88), 
+        text = element_text(size=FONT_SIZE), 
+        axis.text = element_text(colour = "black", size=FONT_SIZE), 
+        axis.text.y = element_blank()) + 
+  xlab("Patient's glucose level (mmol/L)") + 
+  ylab ("") +
+  labs(color = "Outcome") + 
+  ylim(13, 56) +
+  scale_color_manual(values=OUTCOME_PALETTE)
+  
+  p
+}
+
+albumin_glucose_plot <- draw_albumin_glucose_plot(df_last)
+albumin_glucose_plot + ylab("Patient's albumin level (g/L)")
+save_plot(albumin_glucose_plot + theme(legend.position="none"), "albumin_glucose_plot")
+```
+
+# Citing
+
+
+```{r}
+draw_glucose_sina_plot <-function(df, plot_name) {
+  p <- ggplot(df, aes(x=OutcomeFactor, y=glucose, color=OutcomeFactor)) + 
+  geom_hline(aes(yintercept=7.8), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_hline(aes(yintercept=11.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
     
   geom_sina(seed=21) + 
   stat_summary(fun.data = "mean_sdl",  fun.args = list(mult = 1), 
@@ -84,59 +268,18 @@ draw_albumin_sina_plot <-function(df, plot_name) {
         axis.text = element_text(colour = "black", size=FONT_SIZE), 
         axis.title.y = element_text(margin = margin(t = 0, r = 8, b = 0, l = 0))) + 
   xlab("") + 
-  ylab ("Patient's albumin level (g/L)") +
-  ylim(13, 56) +
-  scale_color_manual(values=OUTCOME_PALETTE)
-  
-  save_plot(p, plot_name)
-  p
-}
-
-draw_glucose_sina_plot <- function(df, plot_name, width=PLOT_SIZE, height=PLOT_SIZE, units=PLOT_UNITS) {
-  p <- ggplot(df, aes(x=Outcome, y=glucose, color=Outcome)) + 
-  geom_hline(aes(yintercept=3.9), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
-  geom_hline(aes(yintercept=7.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
-  geom_sina(seed=21) + 
-  stat_summary(fun.data = "mean_sdl",  fun.args = list(mult = 1), 
-               geom = "pointrange", color = "black") +
-  theme_classic() + 
-  theme(legend.position = "none", 
-        text = element_text(size=FONT_SIZE), 
-        axis.text = element_text(colour = "black", size=FONT_SIZE), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 8, b = 0, l = 0))) + 
-  xlab("") + 
   ylab ("Patient's glucose level (mmol/L)") +
+  labs(color = "Outcome") + 
   scale_color_manual(values=OUTCOME_PALETTE)
   
   save_plot(p, plot_name)
   p
 }
 
-draw_albumin_glucose_plot <-function(df, plot_name, width=6, height=6) {
-  p <- ggplot(df, aes(x=glucose, y=albumin, color=Outcome)) + 
-  geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
-  geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
-  geom_vline(aes(xintercept=3.9), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
-  geom_vline(aes(xintercept=7.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
-  geom_point() + 
-  theme_classic() + 
-  theme(legend.position = "none", #c(0.85, 0.88), 
-        text = element_text(size=FONT_SIZE), 
-        axis.text = element_text(colour = "black", size=FONT_SIZE), 
-        axis.text.y = element_blank()) + 
-  xlab("Patient's glucose level (mmol/L)") + 
-  ylab ("") +
-  ylim(13, 56) +
-  scale_color_manual(values=OUTCOME_PALETTE)
-  
-  save_plot(p, plot_name)
-  p
-}
 
-draw_time_series_plot <- function(plot_name, aDeath, bDeath, aSurvived, bSurvived) {
-  p <- ggplot(df_all, aes(x=TimeSinceSubmission, y=albumin, color=Outcome)) + 
-    geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
-    geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
+draw_glucose_time_series_plot <- function(plot_name, aDeath, bDeath, aSurvived, bSurvived) {
+  p <- ggplot(df_all, aes(x=TimeSinceSubmission, y=glucose, color=OutcomeFactor)) + 
+    geom_hline(aes(yintercept=11.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
     geom_line(mapping=aes(group=PATIENT_ID), alpha=0.35) +
     geom_segment(aes(x=0, xend=22, y=bDeath + aDeath, 
                      yend = bDeath + aDeath*22), 
@@ -148,15 +291,10 @@ draw_time_series_plot <- function(plot_name, aDeath, bDeath, aSurvived, bSurvive
     theme(legend.position = "none", 
           text = element_text(size=FONT_SIZE), 
           axis.text = element_text(colour = "black", size=FONT_SIZE), 
-          axis.text.y = element_blank()) + 
-    # geom_text(mapping=aes(label=as.character(labDeath), x=10, y=bDeath), 
-    #           label.size=FONT_SIZE*0.8, vjust=-0.5, hjust=0, inherit.aes = FALSE, 
-    #           color = NORMAL_RANGE_COLOR, parse = T) +
-    #   geom_text(mapping=aes(label=as.character(labSurvived), x=12, y=bSurvived), 
-    #         label.size=FONT_SIZE*0.8, vjust=-0.5, hjust=0, inherit.aes = FALSE, 
-    #         color = NORMAL_RANGE_COLOR, parse = T) +
+          axis.text.y = element_blank()) +
     xlab("Days since admission") + 
     ylab ("") +
+    labs(color = "Outcome") + 
     ylim(13, 56) +
     scale_color_manual(values=OUTCOME_PALETTE)
   
@@ -165,71 +303,31 @@ draw_time_series_plot <- function(plot_name, aDeath, bDeath, aSurvived, bSurvive
 }
 ```
 
-```{r, warning=F, message=F}
-df_all <- read_data("data/time_series_375_prerpocess_en.xlsx")
-df_last <- get_last_samples(df_all)
+```{r}
+# TODO: https://rpubs.com/amertens/a
+logistic.fit.albumin<-glm(OutcomeNumber~albumin, family="binomial", data=df_last)
+summary(logistic.fit.albumin)
+exp(logistic.fit.albumin$coefficients)
+```
+```{r}
 
-tapply(df_last[df_last$gender == "Female", ]$gender,df_last[df_last$gender == "Female", ]$Outcome, length)
+logistic.fit.glucose<-glm(OutcomeNumber~glucose, family="binomial", data=df_last)
+summary(logistic.fit.glucose)
+exp(logistic.fit.glucose$coefficients)
+```
+```{r}
+logistic.fit.age<-glm(OutcomeNumber~age, family="binomial", data=df_last)
+summary(logistic.fit.age)
+exp(logistic.fit.age$coefficients)
 ```
 
 ```{r}
-a_plot <- draw_albumin_sina_plot(df_last, "albumin_level_sina_plot")
+logistic.fit.gender<-glm(OutcomeNumber~gender, family="binomial", data=df_last)
+summary(logistic.fit.gender)
+exp(logistic.fit.gender$coefficients)
 ```
-
 ```{r}
-c_plot <- draw_albumin_glucose_plot(df_last, "albumin_glucose_plot")
-```
-
-```{r}
-supplement_plot <- draw_glucose_sina_plot(df_last, "glucose_level_sina_plot")
-```
-
-```{r, warning=F}
-d <- df_all[, c("PATIENT_ID", "albumin", "TimeSinceSubmission")]
-
-fits <- lmList(albumin ~ TimeSinceSubmission | PATIENT_ID, data=d)
-coefs <- coef(fits)
-coefs <- cbind(coefs, df_last)
-
-aDeath <- median(coefs[coefs$Outcome == "Died", "TimeSinceSubmission"], na.rm=T)
-bDeath <- median(coefs[coefs$Outcome == "Died", "(Intercept)"], na.rm=T)
-aSurvived <- median(coefs[coefs$Outcome == "Survived", "TimeSinceSubmission"], na.rm=T)
-bSurvived <- median(coefs[coefs$Outcome == "Survived", "(Intercept)"], na.rm=T)
-
-b_plot <- draw_time_series_plot("albumin_level_series", aDeath, bDeath, aSurvived, bSurvived)
-```
-
-```{r}
-ggsave(paste0("plots/", "combined", ".svg"), width=PLOT_SIZE*3, height=PLOT_SIZE)
-ggsave(paste0("plots/", "combined", ".png"), width=PLOT_SIZE*3, height=PLOT_SIZE)
-```
-
-
-
-```{r}
-ggqqplot(df_last, x="albumin", color="Outcome", palette = c("#EE6677", "#4477AA")) + 
-  theme(legend.position = c(0.88, 0.18), 
-        axis.text = element_text(colour = "black", size=18), 
-        text = element_text(size=18)) + xlab("Theoretical quantiles") + ylab("Sample quantiles")
-```
-
-```{r, include=FALSE}
-ggsave("plots/albumin_level_qqplot.svg")
-ggsave("plots/albumin_level_qqplot.png")
-```
-
-```{r}
-shapiro.test(df_last[df_last$Outcome=="Died",]$albumin)
-shapiro.test(df_last[df_last$Outcome=="Survived",]$albumin)
-t.test(df_last[df_last$Outcome=="Died",]$albumin, df_last[df_last$Outcome=="Survived",]$albumin)
-```
-
-```{r}
-mean(df_last[df_last$Outcome=="Died",]$albumin)
-sd(df_last[df_last$Outcome=="Died",]$albumin)
-```
-
-```{r}
-mean(df_last[df_last$Outcome=="Survived",]$albumin)
-sd(df_last[df_last$Outcome=="Survived",]$albumin)
+logistic.fit.adjusted<-glm(OutcomeNumber~albumin + glucose + age + gender, family="binomial", data=df_last)
+summary(logistic.fit.adjusted)
+exp(logistic.fit.adjusted$coefficients)
 ```
