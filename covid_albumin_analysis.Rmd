@@ -236,19 +236,48 @@ cor.test(d[d$OutcomeFactor == "Survived", ]$TimeSinceSubmission, d[d$OutcomeFact
 
 ```{r}
 draw_albumin_glucose_plot <-function(df) {
-  p <- ggplot(df, aes(x=glucose, y=albumin, color=OutcomeFactor)) + 
+  p <- ggplot(df, aes(x=glucose, y=albumin, color=OutcomeFactor, fill=OutcomeFactor)) + 
   geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
   geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_vline(aes(xintercept=4.0), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
   geom_vline(aes(xintercept=5.5), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
   geom_vline(aes(xintercept=11.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
   geom_point() + 
   theme_classic() + 
   theme(legend.position = c(0.85, 0.88), 
         text = element_text(size=FONT_SIZE), 
-        axis.text = element_text(colour = "black", size=FONT_SIZE), 
-        axis.text.y = element_blank()) + 
+        axis.text.y = element_blank(),
+        axis.text = element_text(colour = "black", size=FONT_SIZE)) + 
   xlab("Patient's glucose level (mmol/L)") + 
-  ylab ("") +
+  ylab("") +
+  labs(color = "Outcome", fill = "Outcome") + 
+  ylim(13, 56) +
+  scale_color_manual(values=OUTCOME_PALETTE) +
+    scale_fill_manual(values=OUTCOME_PALETTE)
+  
+  p
+}
+
+albumin_glucose_plot <- draw_albumin_glucose_plot(df_last)
+albumin_glucose_plot
+save_plot(albumin_glucose_plot + theme(legend.position="none"), "albumin_glucose_plot", width=PLOT_SIZE*2, height = PLOT_SIZE)
+```
+
+# Relation between albumin and glucose levels
+
+```{r}
+draw_albumin_age_plot <-function(df) {
+  p <- ggplot(df, aes(x=age, y=albumin, color=OutcomeFactor)) + 
+  geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_point() + 
+  theme_classic() + 
+  theme(legend.position = "none", 
+        text = element_text(size=FONT_SIZE), 
+        axis.text = element_text(colour = "black", size=FONT_SIZE),
+        axis.title.y = element_text(margin = margin(t = 0, r = 8, b = 0, l = 0))) + 
+  xlab("Patient's age") + 
+  ylab ("Patient's albumin level (g/L)") +
   labs(color = "Outcome") + 
   ylim(13, 56) +
   scale_color_manual(values=OUTCOME_PALETTE)
@@ -256,9 +285,9 @@ draw_albumin_glucose_plot <-function(df) {
   p
 }
 
-albumin_glucose_plot <- draw_albumin_glucose_plot(df_last)
-albumin_glucose_plot + ylab("Patient's albumin level (g/L)")
-save_plot(albumin_glucose_plot + theme(legend.position="none"), "albumin_glucose_plot")
+albumin_age_plot <- draw_albumin_age_plot(df_last)
+albumin_age_plot + ylab("Patient's albumin level (g/L)")
+save_plot(albumin_age_plot + theme(legend.position="none"), "albumin_age_plot")
 ```
 
 # Regression analysis
@@ -354,18 +383,22 @@ exp(logistic.fit.effect$coefficients)
 ```{r}
 gender_albumin_regression <- ggplot(df_last, aes(x=albumin, y=OutcomeNumber, color=gender)) + 
   geom_point() + 
+  geom_vline(aes(xintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
+  geom_vline(aes(xintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
   theme_classic() + 
-  theme(legend.position = c(0.88, 0.18),
+  theme(legend.position = c(0.15, 0.13),
         strip.background = element_blank(),
         strip.text.x = element_blank(),
         text = element_text(size=FONT_SIZE), 
         axis.text = element_text(colour = "black", size=FONT_SIZE), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 8, b = 0, l = 0))) + 
+        axis.text.y = element_blank()) + 
   ylab("Log odds of death") + 
-  xlab ("Patient's albumin level (g/L)") +
+  xlab ("") +
+  xlim(13, 56) +
   labs(color = "Gender") + 
-  scale_color_manual(values=c("#009988", "#EE7733")) +
-  stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE)
+  scale_color_manual(values=c("#44AA99", "#AA4499")) +
+  stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
+  coord_flip()
 save_plot(gender_albumin_regression, "gender_albumin_regression")
 gender_albumin_regression
 ```
