@@ -1,5 +1,5 @@
 ---
-title: "Analysis of albumin and glucose levels in patients from Tongji Hospital, Wuhan, China"
+title: "Analysis of albumin levels in patients from Tongji Hospital, Wuhan, China"
 author: "Dariusz Brzezinski"
 date: "`r Sys.Date()`"
 output: 
@@ -10,10 +10,10 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F, warning = F, message = F, cache = F)
+knitr::opts_chunk$set(echo = F, warning = F, message = F, cache = T)
 
 library(readxl)
-library(Hmisc)
+library(summarytools)
 library(ggplot2)
 library(ggforce)
 library(dplyr)
@@ -50,6 +50,7 @@ read_data <- function(file) {
            OutcomeNumber = replace(OutcomeFactor, OutcomeFactor == "Survived", 1), 
            OutcomeNumber = replace(OutcomeNumber, OutcomeFactor == "Died", 0),
            OutcomeNumber = as.numeric(OutcomeNumber),
+           OutcomeFactor = factor(OutcomeFactor, levels = c("Died", "Survived")),
            TimeSinceSubmission = as.numeric(difftime(RE_DATE, First_RE_DATE), units="days"))
   
   df_all_samples
@@ -81,23 +82,41 @@ save_plot <- function(p, name, width=PLOT_SIZE, height=PLOT_SIZE) {
 }
 ```
 
-This notebook presents the plot scripts and statistical analysis presented in the by Shabalin *et al.*
+This notebook presents the plot scripts and statistical analyses presented in the paper "Molecular determinants of dexamethasone vascular transport in COVID-19 therapy" by Shabalin *et al.* Plots presented herein are interactive versions of those presented in the manuscript.
 
 # Data characteristics
 
-```{r}
+```{r read}
+df_raw <- read_excel("data/time_series_375_prerpocess_en.xlsx")
 df_all <- read_data("data/time_series_375_prerpocess_en.xlsx")
 df_first <- get_first_samples(df_all)
 df_last <- get_last_samples(df_all)
 
-tapply(df_last[df_last$gender == "Female", ]$gender,df_last[df_last$gender == "Female", ]$OutcomeFactor, length)
+
+raw_patients <- length(unique(df_raw$PATIENT_ID[complete.cases(df_raw$PATIENT_ID)]))
+albumin_patients <- nrow(df_last)
+mortality_rate <- nrow(df_last[df_last$OutcomeFactor == "Died",])/nrow(df_last) 
+mortality_rate_male <- nrow(df_last[df_last$OutcomeFactor == "Died" & df_last$gender == "Male",])/nrow(df_last[df_last$gender == "Male",]) 
+mortality_rate_female <- nrow(df_last[df_last$OutcomeFactor == "Died" & df_last$gender == "Female",])/nrow(df_last[df_last$gender == "Female",]) 
 ```
+
+The data for the study was taken from the supplementary materials of "An interpretable mortality prediction model for COVID-19 patients. Nat. Mach. Intell. 2, 283–288 (2020)" by *Yan et al.* and describes COVID-19 patients admitted to Tongji Hospital, Wuhan, China between January 10 and February 18, 2020. The raw dataset contained information about `r raw_patients` patients, however only `r albumin_patients` patients that had their albumin levels measured at least once during their hospital stay, and those were of interest to the current study. The table below presents the basic statistics of clinical variables analyzed in this study.
+
+```{r stats, results='asis'}
+Tongji <- df_last %>% select(OutcomeFactor, gender, age, TimeSinceSubmission, albumin, glucose) %>%
+  rename(Outcome = OutcomeFactor, Gender = gender, Age = age, TimeSinceSubmission=TimeSinceSubmission, Albumin = albumin, Glucose = glucose)
+# knitr::kable(summary(df_formatted_for_stats))
+dfSummary(Tongji, plain.ascii = FALSE, style = "grid", headings = FALSE,
+          graph.magnif = 0.75, valid.col = FALSE, tmp.img.dir = "/tmp")
+```
+
+The overall mortality rate was `r round(mortality_rate*100,2)`%, whereas the mortality rate among male and female patients was `r round(mortality_rate_male*100,2)`% and `r round(mortality_rate_female*100,2)`%, respectively.
 
 # Albumin levels
 
 ## Distributions and normality tests
 
-```{r}
+```{r sina_plot_function}
 draw_albumin_sina_plot <-function(df) {
   p <- ggplot(df, aes(x=OutcomeFactor, y=albumin, color=OutcomeFactor)) + 
   geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
@@ -227,15 +246,7 @@ cor.test(d[d$OutcomeFactor == "Survived", ]$TimeSinceSubmission, d[d$OutcomeFact
          method = c("pearson"))
 ```
 
-# Glucose levels 
-
-## Distributions and normality tests
-
-## Gender
-
-## Time series and trends
-
-# Relation between albumin and glucose levels
+## Relation between albumin and glucose levels
 
 ```{r}
 draw_albumin_glucose_plot <-function(df) {
@@ -266,7 +277,7 @@ albumin_glucose_plot
 save_plot(albumin_glucose_plot + theme(legend.position="none"), "albumin_glucose_plot", width=PLOT_SIZE*2, height = PLOT_SIZE)
 ```
 
-# Relation between albumin and glucose levels
+## Relation between albumin and glucose levels
 
 ```{r}
 draw_albumin_age_plot <-function(df) {
@@ -356,6 +367,7 @@ run_logistic_regression <- function(df, formula) {
   print(exp(confint(logistic.fit)))
 }
 ```
+
 ```{r}
 run_logistic_regression(df_last, OutcomeNumber~albumin)
 run_logistic_regression(df_last, OutcomeNumber~gender)
