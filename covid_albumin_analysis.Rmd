@@ -47,6 +47,9 @@ read_data <- function(file) {
            gender = factor(gender, levels = c("Male", "Female")),
            OutcomeFactor = replace(outcome, outcome == 0, "Survived"), 
            OutcomeFactor = replace(OutcomeFactor, OutcomeFactor == 1, "Died"),
+           OutcomeNumber = replace(OutcomeFactor, OutcomeFactor == "Survived", 1), 
+           OutcomeNumber = replace(OutcomeNumber, OutcomeFactor == "Died", 0),
+           OutcomeNumber = as.numeric(OutcomeNumber),
            TimeSinceSubmission = as.numeric(difftime(RE_DATE, First_RE_DATE), units="days"))
   
   df_all_samples
@@ -55,7 +58,7 @@ read_data <- function(file) {
 get_last_samples <- function(df_all_samples) {
   df <- df_all_samples %>%
     group_by(PATIENT_ID) %>% 
-    summarise(albumin=last(albumin), OutcomeFactor=last(OutcomeFactor), OutcomeNumber=last(outcome),
+    summarise(albumin=last(albumin), OutcomeFactor=last(OutcomeFactor), OutcomeNumber=last(OutcomeNumber),
               glucose=last(glucose), gender=last(gender), age=last(age), n=n(),
               TimeSinceSubmission=last(TimeSinceSubmission))
   
@@ -65,7 +68,7 @@ get_last_samples <- function(df_all_samples) {
 get_first_samples <- function(df_all_samples) {
   df <- df_all_samples %>%
     group_by(PATIENT_ID) %>% 
-    summarise(albumin=first(albumin), OutcomeFactor=first(OutcomeFactor), OutcomeNumber=first(outcome),
+    summarise(albumin=first(albumin), OutcomeFactor=first(OutcomeFactor), OutcomeNumber=first(OutcomeNumber),
               glucose=first(glucose), gender=first(gender), age=first(age), n=n(),
               TimeSinceSubmission=first(TimeSinceSubmission))
   
@@ -78,7 +81,7 @@ save_plot <- function(p, name, width=PLOT_SIZE, height=PLOT_SIZE) {
 }
 ```
 
-TODO: Executive summary
+This notebook presents the plot scripts and statistical analysis presented in the by Shabalin *et al.*
 
 # Data characteristics
 
@@ -346,38 +349,28 @@ draw_glucose_time_series_plot <- function(plot_name, aDeath, bDeath, aSurvived, 
 ```
 
 ```{r}
-# TODO: https://rpubs.com/amertens/a
-logistic.fit.albumin<-glm(OutcomeNumber~albumin, family="binomial", data=df_last)
-summary(logistic.fit.albumin)
-exp(logistic.fit.albumin$coefficients)
+run_logistic_regression <- function(df, formula) {
+  logistic.fit<-glm(formula, family="binomial", data=df)
+  print(summary(logistic.fit))
+  print(exp(logistic.fit$coefficients))
+  print(exp(confint(logistic.fit)))
+}
 ```
 ```{r}
-
-logistic.fit.glucose<-glm(OutcomeNumber~glucose, family="binomial", data=df_last)
-summary(logistic.fit.glucose)
-exp(logistic.fit.glucose$coefficients)
-```
-```{r}
-logistic.fit.age<-glm(OutcomeNumber~age, family="binomial", data=df_last)
-summary(logistic.fit.age)
-exp(logistic.fit.age$coefficients)
+run_logistic_regression(df_last, OutcomeNumber~albumin)
+run_logistic_regression(df_last, OutcomeNumber~gender)
+run_logistic_regression(df_last, OutcomeNumber~age)
+run_logistic_regression(df_last, OutcomeNumber~glucose)
 ```
 
 ```{r}
-logistic.fit.gender<-glm(OutcomeNumber~gender, family="binomial", data=df_last)
-summary(logistic.fit.gender)
-exp(logistic.fit.gender$coefficients)
-```
-```{r}
-logistic.fit.adjusted<-glm(OutcomeNumber~albumin + glucose + age + gender, family="binomial", data=df_last)
-summary(logistic.fit.adjusted)
-exp(logistic.fit.adjusted$coefficients)
+run_logistic_regression(df_last, OutcomeNumber~albumin + glucose + age + gender)
 ```
 
 ```{r}
-logistic.fit.effect<-glm(OutcomeNumber~albumin * gender, family="binomial", data=df_last)
-summary(logistic.fit.effect)
-exp(logistic.fit.effect$coefficients)
+run_logistic_regression(df_last, OutcomeNumber~albumin*gender)
+run_logistic_regression(df_last, OutcomeNumber~albumin*age)
+run_logistic_regression(df_last, OutcomeNumber~albumin*glucose)
 ```
 
 ```{r}
@@ -392,7 +385,7 @@ gender_albumin_regression <- ggplot(df_last, aes(x=albumin, y=OutcomeNumber, col
         text = element_text(size=FONT_SIZE), 
         axis.text = element_text(colour = "black", size=FONT_SIZE), 
         axis.text.y = element_blank()) + 
-  ylab("Log odds of death") + 
+  ylab("Probability of death") + 
   xlab ("") +
   xlim(13, 56) +
   labs(color = "Gender") + 
