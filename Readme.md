@@ -1,6 +1,6 @@
 # Reproducible analysis of albumin levels of patients from Tongji Hospital, Wuhan, China
 
-The main folder contains the R source code (`covid_albumin_analysis.Rmd`) in the form of a knitr notebook and the resulting report in Markdown (`covid_albumin_analysis.md`) and HTML (`covid_albumin_analysis.html`) format. If you want to take a look at the report open the markdown file in the browser or download the html file to your computer. The data for this analysis were taken from: https://github.com/HAIRLAB/Pre_Surv_COVID_19 and were describe in "An interpretable mortality prediction model for COVID-19 patients" by Li Yan *et al.*
+The main folder contains the R source code (`covid_albumin_analysis.Rmd`) in the form of a knitr notebook and the resulting report in HTML format (`covid_albumin_analysis.html`). If you want to take a look at the report download the html file to your computer or go to https://dabrze.github.io/covid_albumin_levels/.
 
 The rest of the repository is organized as follows:
 

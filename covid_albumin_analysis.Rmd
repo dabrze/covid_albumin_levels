@@ -162,7 +162,7 @@ The sina plot below presents the distribution of albumin levels among the two ou
 albumin_sina_plot <- draw_albumin_sina_plot(df_last)
 save_plot(albumin_sina_plot, "albumin_sina_plot")
 ggplotly(albumin_sina_plot + theme(legend.position = "right") + labs(color = "", fill = ""), 
-         tooltip = c("Albumin", "Glucose", "Age", "text"))
+         tooltip = c("Albumin", "Age"))
 ```
 
 To verify whether the albumin levels in both outcome groups are normally distributed, we first plotted Q-Q plots, as presented below. The shaded area represents the 95% confidence intervals.
@@ -225,7 +225,7 @@ The difference between albumin levels was also evaluated for gender. It can be n
 ```{r gender}
 albumin_gender_plot <- albumin_sina_plot + facet_grid(cols = vars(Gender))
 save_plot(albumin_gender_plot + theme(strip.text.x = element_blank()), "albumin_gender_plot")
-ggplotly(albumin_gender_plot + theme(legend.position = "right") + labs(color = "", fill = ""), tooltip = c("text"))
+ggplotly(albumin_gender_plot + theme(legend.position = "right") + labs(color = "", fill = ""), tooltip = c("Albumin", "Age"))
 ```
 
 The differences in mean albumin levels within patients of the same gender were statistically significant according to a two-tailed Welch's t-test at $\alpha = 0.05$ (p < 0.001).
@@ -498,7 +498,7 @@ gender_albumin_regression <- ggplot(df_last, aes(x=Albumin, y=OutcomeNumber, col
         text = element_text(size=FONT_SIZE), 
         axis.text = element_text(colour = "black", size=FONT_SIZE), 
         axis.text.y = element_blank()) + 
-  ylab("Probability of death") + 
+  ylab("Probability of survival") + 
   xlab ("") +
   xlim(13, 56) +
   labs(color = "Gender") + 
