@@ -1,5 +1,5 @@
 ---
-title: "Analysis of albumin levels in patients from Tongji Hospital, Wuhan, China"
+title: "Analysis of albumin levels of patients from Tongji Hospital, Wuhan, China"
 author: "Dariusz Brzezinski"
 date: "`r Sys.Date()`"
 output: 
@@ -7,10 +7,11 @@ output:
     number_sections: yes
     toc: yes
     toc_float: yes
+    toc_depth: 2
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F, warning = F, message = F, cache = T)
+knitr::opts_chunk$set(echo = F, warning = F, message = F, cache = F)
 
 library(formattable)
 library(readxl)
@@ -146,7 +147,7 @@ draw_albumin_sina_plot <-function(df) {
   p
 }
 
-draw_qq_plot <- function(df, column) {
+draw_qq_plot <- function(df, column, y_lab) {
   ggqqplot(df_last, x=column, color="Outcome", palette = c("#EE6677", "#4477AA")) + 
   labs(color = "Outcome", fill = "Outcome") + 
   theme(legend.position = c(0.88, 0.18), 
@@ -155,12 +156,12 @@ draw_qq_plot <- function(df, column) {
 }
 ```
 
-The sina plot below presents the distribution of albumin levels among the two outcome groups of patients (Died, Survived), with the mean and standard deviation overlaid.
+The sina plot below presents the distribution of albumin levels among the two outcome groups of patients (Died, Survived), with the mean and standard deviation overlaid. The horizontal dashed lines represent the normal range for albumin (35-55 g/L).
 
 ```{r albumin_sina_plot, cache=F}
 albumin_sina_plot <- draw_albumin_sina_plot(df_last)
 save_plot(albumin_sina_plot, "albumin_sina_plot")
-albumin_sina_plot
+ggplotly(albumin_sina_plot)
 # ggplotly(albumin_sina_plot, tooltip = c("Gender", "Age", "Outcome", "TimeSinceAdmission", "Albumin", "Glucose"))
 ```
 
@@ -169,22 +170,43 @@ To verify whether the albumin levels in both outcome groups are normally distrib
 ```{r qq_plot}
 albumin_qq_plot <- draw_qq_plot(df_last, "Albumin")
 save_plot(albumin_qq_plot, "albumin_qq_plot")
-albumin_qq_plot
+ggplotly(albumin_qq_plot)
 ```
 
-Upon a positive verification of the Q-Q plots, the normality of the the albumin distributions was additionally confirmed by two Shapiro-Wilk tests:
+Upon a positive verification of the Q-Q plots, the normality of the the albumin distributions was additionally confirmed by two Shapiro-Wilk tests at $\alpha = 0.05$. The null hypothesis for the test is that the distribution is normal. Therefore, if we *cannot* reject the null hypotheses, we will assume the the distributions are normal.
 
 ```{r shapiro}
-format_test <- function(test_result, data_name) {
+format_test <- function(test_result, data_name, use_color=TRUE) {
   df <- data.frame(value = unlist(test_result))
   df["data.name", "value"] = data_name
-  formattable(df)
+  
+  if (use_color){
+    if (as.numeric(df["p.value", "value"]) < 0.05) {
+      color = "#71CA97"
+    } else {
+      color = "#FA614B"
+    }
+    
+    formattable(df, list(area(row = "p.value") ~ color_tile(color, color)))
+  } else {
+    formattable(df)
+  }
 }
-
-format_test(shapiro.test(df_last[df_last$Outcome=="Died",]$Albumin), "Outcome == Died")
-format_test(shapiro.test(df_last[df_last$Outcome=="Survived",]$Albumin), "Outcome == Survived")
 ```
 
+### {.tabset -}
+
+#### Shapiro-Wilk test: Died{-}
+```{r}
+format_test(shapiro.test(df_last[df_last$Outcome=="Died",]$Albumin), "Outcome == Died", use_color=FALSE)
+```
+
+#### Shapiro-Wilk test: Survived{-}
+```{r}
+format_test(shapiro.test(df_last[df_last$Outcome=="Survived",]$Albumin), "Outcome == Survived", use_color=FALSE)
+```
+
+### {-}
 
 Since the p-values of the Shapiro-Wilk tests are above 0.05, we cannot reject the null hypothesis that the albumin levels are normally distributed. Therefore, we assume the null hypothesis is true and **the albumin levels for both outcome groups are normally distributed**. Having verified the normality of the distributions, we can perform a two-tailed Welch's t-test to check if the differences in albumin levels are statistically significant.
 
@@ -198,16 +220,48 @@ With a p-value < 0.001 we can reject the null hypothesis that the means are equa
 
 ## Gender
 
-```{r}
+The difference between albumin levels was also evaluated for gender. It can be noticed that the albumin distribution shapes and means are practically identical to those of the overall patient cohort. Nevertheless, the proportions of points within those that died and survived for both genders are different. This relates to the earlier mentioned differences in mortality rates: `r round(mortality_rate_male*100,2)`% and `r round(mortality_rate_female*100,2)`% for males and females respectively)
+
+```{r gender}
 albumin_gender_plot <- albumin_sina_plot + facet_grid(cols = vars(Gender))
 save_plot(albumin_gender_plot + theme(strip.text.x = element_blank()), "albumin_gender_plot")
-albumin_gender_plot
+ggplotly(albumin_gender_plot)
 ```
 
-```{r}
+The differences in mean albumin levels within patients of the same gender were statistically significant according to a two-tailed Welch's t-test at $\alpha = 0.05$ (p < 0.001).
 
-t.test(df_last[df_last$Outcome=="Died" & df_last$Gender=="Male",]$Albumin, df_last[df_last$Outcome=="Survived" & df_last$Gender=="Male",]$Albumin)
-t.test(df_last[df_last$Outcome=="Died" & df_last$Gender=="Female",]$Albumin, df_last[df_last$Outcome=="Survived" & df_last$Gender=="Female",]$Albumin)
+### {.tabset -}
+
+#### Shapiro-Wilk test: Male Died{-}
+```{r}
+format_test(shapiro.test(df_last[df_last$Outcome=="Died" & df_last$Gender=="Male",]$Albumin), "Male: Outcome == Died", use_color=FALSE)
+```
+
+#### Shapiro-Wilk test: Male Survived{-}
+```{r}
+format_test(shapiro.test(df_last[df_last$Outcome=="Survived" & df_last$Gender=="Male",]$Albumin), "Male: Outcome == Survived", use_color=FALSE)
+```
+
+#### Welch's t-test: Male {-}
+```{r}
+format_test(t.test(df_last[df_last$Outcome=="Died" & df_last$Gender=="Male",]$Albumin, df_last[df_last$Outcome=="Survived" & df_last$Gender=="Male",]$Albumin), "Male: Outcome == Died vs Outcome == Survived")
+```
+
+### {.tabset -}
+
+#### Shapiro-Wilk test: Female Died{-}
+```{r}
+format_test(shapiro.test(df_last[df_last$Outcome=="Died" & df_last$Gender=="Female",]$Albumin), "Female: Outcome == Died", use_color=FALSE)
+```
+
+#### Shapiro-Wilk test: Female Survived{-}
+```{r}
+format_test(shapiro.test(df_last[df_last$Outcome=="Survived" & df_last$Gender=="Female",]$Albumin), "Female: Outcome == Survived", use_color=FALSE)
+```
+
+#### Welch's t-test: Female {-}
+```{r}
+format_test(t.test(df_last[df_last$Outcome=="Died" & df_last$Gender=="Female",]$Albumin, df_last[df_last$Outcome=="Survived" & df_last$Gender=="Female",]$Albumin), "Female: Outcome == Died vs Outcome == Survived")
 ```
 
 ## Time series and trends
@@ -251,34 +305,47 @@ aDeath <- median(coefs[coefs$Outcome == "Died", "TimeSinceAdmission"], na.rm=T)
 bDeath <- median(coefs[coefs$Outcome == "Died", "(Intercept)"], na.rm=T)
 aSurvived <- median(coefs[coefs$Outcome == "Survived", "TimeSinceAdmission"], na.rm=T)
 bSurvived <- median(coefs[coefs$Outcome == "Survived", "(Intercept)"], na.rm=T)
-
-print(paste("Died = ", round(aDeath, 2), "Time + ", bDeath))
-print(paste("Survived = ", round(aSurvived, 2), "Time + ", bSurvived))
 ```
 
-```{r}
-IQR(coefs[coefs$Outcome == "Died", "TimeSinceAdmission"], na.rm=T)
-IQR(coefs[coefs$Outcome == "Survived", "TimeSinceAdmission"], na.rm=T)
-```
+
+Apart from studying the patients' final albumin samples, we have also analyzed how albumin levels changed over time. The line plot below presents the albumin level of each patient over time. The median linear trends between the first and last albumin levels recorded were:
+
+$$ albumin_{Died} = `r round(aDeath, 2)`x + `r bDeath`$$
+$$ albumin_{Survived} = `r round(aSurvived, 2)`x + `r bSurvived`$$
+
 
 ```{r}
 albumin_time_series_plot <- draw_albumin_time_series_plot(df_all, aDeath, bDeath, aSurvived, bSurvived)
 save_plot(albumin_time_series_plot + theme(legend.position = "none"), "albumin_time_series_plot")
-albumin_time_series_plot + ylab("Patient's albumin level (g/L)")
+albumin_time_series_plot + ylab("Patient's albumin level (g/L)") + theme(axis.text.y = element_text(colour = "black", size=FONT_SIZE))
 ```
 
+Calculating Pearson's correlation coefficient, we can state that the correlation between albumin levels and days since hospital admission is statisticaly significant only for those patients that died. 
+
+### {.tabset -}
+
+#### Pearson's Correlation Coefficient: Died{-}
 ```{r}
-cor.test(d[d$Outcome == "Died", ]$TimeSinceAdmission, d[d$Outcome == "Died", ]$Albumin, 
-         method = c("pearson"))
-cor.test(d[d$Outcome == "Survived", ]$TimeSinceAdmission, d[d$Outcome == "Survived", ]$Albumin, 
-         method = c("pearson"))
+format_test(cor.test(d[d$Outcome == "Died", ]$TimeSinceAdmission, d[d$Outcome == "Died", ]$Albumin, method = c("pearson")), 
+            "Outcome == Died")
 ```
 
-## Relation between albumin and glucose levels
+#### Pearson's Correlation Coefficient: Survived{-}
+```{r}
+format_test(cor.test(d[d$Outcome == "Survived", ]$TimeSinceAdmission, d[d$Outcome == "Survived", ]$Albumin, method = c("pearson")),
+            "Outcome == Survived")
+```
+
+
+## Albumin vs glucose levels
+
+Another variable that was taken into account was the pateint's glucose level. The scatter plot below presents the relation between albumin levels (y-axis) and glucose levels (x-axis), with color denoting the outcome groups of patients (red: Died, blue: Survived).The horizontal dashed lines represent the normal range for albumin (35-55 g/L), whereas the vertical dashed lines show the glucose fasting normal range (4.0-5.5 mmol/L) and the random plasma test diabetes threshold (11.1 mmol/L).
 
 ```{r}
 draw_albumin_glucose_plot <-function(df) {
-  p <- ggplot(df, aes(x=Glucose, y=Albumin, color=Outcome, fill=Outcome)) + 
+  p <- ggplot(df, aes(x=Glucose, y=Albumin, color=Outcome, fill=Outcome, 
+                      text = paste("Gender:", Gender, "<br>","Age:", Age, "<br>",
+                                   "Albumin:", Albumin, "g/L<br>","Glucose:", Glucose, "mmol/L"))) + 
   geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
   geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
   geom_vline(aes(xintercept=4.0), colour=NORMAL_RANGE_COLOR, linetype="dashed") + 
@@ -301,15 +368,21 @@ draw_albumin_glucose_plot <-function(df) {
 }
 
 albumin_glucose_plot <- draw_albumin_glucose_plot(df_last)
-albumin_glucose_plot + ylab("Patient's albumin level (g/L)")
 save_plot(albumin_glucose_plot + theme(legend.position="none"), "albumin_glucose_plot", width=PLOT_SIZE*2, height = PLOT_SIZE)
+ggplotly(albumin_glucose_plot + ylab("Patient's albumin level (g/L)") + theme(axis.text.y = element_text(colour = "black", size=FONT_SIZE)), tooltip = c("text"))
 ```
 
-## Relation between albumin and glucose levels
+It can be noticed that both albumin and glucose levels can be associated with COVID-19 outcome. The relation will be analyzed as part of the logistic regression analysis.
+
+## Albumin vs age
+
+Similarly to glucose levels, the scatter plot below presents the relation between albumin levels (y-axis) and age (x-axis), with color denoting the outcome groups of patients (red: Died, blue: Survived).
 
 ```{r}
 draw_albumin_age_plot <-function(df) {
-  p <- ggplot(df, aes(x=Age, y=Albumin, color=Outcome)) + 
+  p <- ggplot(df, aes(x=Age, y=Albumin, color=Outcome, 
+                      text = paste("Gender:", Gender, "<br>","Age:", Age, "<br>",
+                                   "Albumin:", Albumin, "g/L<br>","Glucose:", Glucose, "mmol/L"))) + 
   geom_hline(aes(yintercept=35), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
   geom_hline(aes(yintercept=55), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
   geom_point() + 
@@ -328,64 +401,15 @@ draw_albumin_age_plot <-function(df) {
 }
 
 albumin_age_plot <- draw_albumin_age_plot(df_last)
-albumin_age_plot + ylab("Patient's albumin level (g/L)")
 save_plot(albumin_age_plot + theme(legend.position="none"), "albumin_age_plot")
+ggplotly(albumin_age_plot, tooltip = c("text"))
 ```
+
+Once again, it can be noticed that age can be associated with albumin levels and COVID-19 outcome. This relation will also be analyzed as part of the logistic regression analysis.
 
 # Regression analysis
 
-```{r}
-draw_glucose_sina_plot <-function(df, plot_name) {
-  p <- ggplot(df, aes(x=Outcome, y=Glucose, color=Outcome)) + 
-  geom_hline(aes(yintercept=7.8), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
-  geom_hline(aes(yintercept=11.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
-    
-  geom_sina(seed=21) + 
-  stat_summary(fun.data = "mean_sdl",  fun.args = list(mult = 1), 
-               geom = "pointrange", color = "black") +
-  facet_grid(cols = vars(Gender)) +
-  theme_classic() + 
-  theme(legend.position = "none", 
-        strip.background = element_blank(),
-        strip.text.x = element_blank(),
-        text = element_text(size=FONT_SIZE), 
-        axis.text = element_text(colour = "black", size=FONT_SIZE), 
-        axis.title.y = element_text(margin = margin(t = 0, r = 8, b = 0, l = 0))) + 
-  xlab("") + 
-  ylab ("Patient's glucose level (mmol/L)") +
-  labs(color = "Outcome") + 
-  scale_color_manual(values=OUTCOME_PALETTE)
-  
-  save_plot(p, plot_name)
-  p
-}
-
-
-draw_glucose_time_series_plot <- function(plot_name, aDeath, bDeath, aSurvived, bSurvived) {
-  p <- ggplot(df_all, aes(x=TimeSinceAdmission, y=Glucose, color=Outcome)) + 
-    geom_hline(aes(yintercept=11.1), colour=NORMAL_RANGE_COLOR, linetype="dashed") +
-    geom_line(mapping=aes(group=PATIENT_ID), alpha=0.35) +
-    geom_segment(aes(x=0, xend=22, y=bDeath + aDeath, 
-                     yend = bDeath + aDeath*22), 
-                 color=DEATH_COLOR, size=1.25) +
-    geom_segment(aes(x=0, xend=22, y=bSurvived + aSurvived, 
-                     yend = bSurvived + aSurvived*22),
-                 color=SURVIVED_COLOR, size=1.25) +
-    theme_classic() + 
-    theme(legend.position = "none", 
-          text = element_text(size=FONT_SIZE), 
-          axis.text = element_text(colour = "black", size=FONT_SIZE), 
-          axis.text.y = element_blank()) +
-    xlab("Days since admission") + 
-    ylab ("") +
-    labs(color = "Outcome") + 
-    ylim(13, 56) +
-    scale_color_manual(values=OUTCOME_PALETTE)
-  
-  save_plot(p, plot_name)
-  p
-}
-```
+To verify the statistical significance of associations between different variables analyzed in this study (albumin levels, glucose levels, gender, age) and the outcome (Died, Survived). We will first created unadjusted models to see the relations between each single variable and the outcome. After that we will create and adjusted model where all the variables are taken into account as potential confounders. Finally, we will verify whether apart from confounding there is any effect modification between albumin levels and other variables.
 
 ```{r}
 run_logistic_regression <- function(df, formula) {
@@ -393,7 +417,7 @@ run_logistic_regression <- function(df, formula) {
   # print(summary(logistic.fit))
   # print(exp(logistic.fit$coefficients))
   # print(exp(confint(logistic.fit)))
-  tab_model(logistic.fit) %>% 
+  tab_model(logistic.fit, p.style = "numeric_stars") %>% 
     return() %$% 
     knitr %>% 
     knitr::asis_output()
@@ -402,17 +426,35 @@ run_logistic_regression <- function(df, formula) {
 
 ## Unadjusted models
 
+Below are the results of logistic regression for each variable. All the unadjusted models were found to be statistically significant at $\alpha = 0.05$, with p < 0.001.
+
+### Albumin{-}
+
 ```{r}
 run_logistic_regression(df_last, OutcomeNumber~Albumin)
 ```
 
+### Gender{-}
+
 ```{r}
 run_logistic_regression(df_last, OutcomeNumber~Gender)
+```
+
+### Age{-}
+
+```{r}
 run_logistic_regression(df_last, OutcomeNumber~Age)
+```
+
+### Glucose{-}
+
+```{r}
 run_logistic_regression(df_last, OutcomeNumber~Glucose)
 ```
 
 ## Adjusted model
+
+The adjusted model has shown that albumin levels are statistically significantly associated with COVID-19 outcome (p < 0.001), even when confounding factors are taken into account.
 
 ```{r}
 run_logistic_regression(df_last, OutcomeNumber~Albumin + Glucose + Age + Gender)
@@ -420,13 +462,26 @@ run_logistic_regression(df_last, OutcomeNumber~Albumin + Glucose + Age + Gender)
 
 ## Testing for effect modification
 
+Test for interactions between albumin levels and other variables, did not show any significant effect modification; all p > 0.20.
+
+### Albumin and gender{-}
 ```{r}
 run_logistic_regression(df_last, OutcomeNumber~Albumin*Gender)
+```
+
+### Albumin and age{-}
+```{r}
 run_logistic_regression(df_last, OutcomeNumber~Albumin*Age)
+```
+
+### Albumin and glucose{-}
+```{r}
 run_logistic_regression(df_last, OutcomeNumber~Albumin*Glucose)
 ```
 
-## Difference in outcome~albumin regression based on gender
+## Regression based on gender
+
+Finally, for the only categorical confounding variable we have plotted (gender) a logistic regression plot with separate lines for males and females. It can be noted that gender makes a different only for high albumin levels. In other words, low albumin levels are an equally strong predictor of death from COVID-19.
 
 ```{r}
 gender_albumin_regression <- ggplot(df_last, aes(x=Albumin, y=OutcomeNumber, color=Gender)) + 
@@ -448,7 +503,9 @@ gender_albumin_regression <- ggplot(df_last, aes(x=Albumin, y=OutcomeNumber, col
   stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
   coord_flip()
 save_plot(gender_albumin_regression, "gender_albumin_regression")
-gender_albumin_regression + ylab("Patient's albumin level (g/L)")
+ggplotly(gender_albumin_regression  + xlab("Patient's albumin level (g/L)") + theme(axis.text.y = element_text(colour = "black", size=FONT_SIZE)))
 ```
 
 # Citing
+
+If you find this analysis useful, please cite: Ivan G. Shabalin1, Mateusz P. Czub, Karolina A. Majorek, Dariusz Brzezinski, Marek Grabowski, David R. Cooper, Mateusz Panasiuk, Maksymilian Chruszcz, Wladek Minor, “Molecular determinants of dexamethasone vascular transport in COVID-19 therapy”, *in review*.
